@@ -33,7 +33,7 @@ public class HookApplication extends Application {
     public void onCreate() {
         super.onCreate();
 
-        try {
+        /*try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 hookAmsCheck_Over10();
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
@@ -51,7 +51,7 @@ public class HookApplication extends Application {
         } catch (Exception e) {
             e.printStackTrace();
             Log.d(TAG, "hookLaunchActivity 失败：" + e.toString());
-        }
+        }*/
     }
 
     /**

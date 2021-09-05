@@ -11,9 +11,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AndPluginHookTalk">
         <activity
+            android:name=".AnotherActivity"
+            android:exported="true" />
+        <activity
             android:name=".ProxyActivity"
             android:exported="true" />
-
         <activity
             android:name=".MainActivity"
             android:exported="true">

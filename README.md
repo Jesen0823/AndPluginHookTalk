@@ -30,3 +30,59 @@ Hook LAUNCH_ACTIVITY
 
 
 
+### 类加载和hook插件
+
+宿主直接跳转插件里面的Activity会报错：
+```
+Caused by: java.lang.ClassNotFoundException: Didn't find class "com.netease.plugin_package.PluginActivity" on path:
+ DexPathList[[zip file "/data/app/com.netease.hookproject-1/base.apk", zip file "/data/app/com.netease.hookproject-1/split_lib_
+ dependencies_apk.apk", zip file "/data/app/com.netease.hookproject-1/split_lib_slice_0_apk.apk", zip file "/data/app/com
+ .netease.hookproject-1/split_lib_slice_1_apk.apk", zip file "/data/app/com.netease.hookproject-1/split_lib_slice_2_apk.apk"
+ , zip file "/data/app/com.netease.hookproject-1/split_lib_slice_3_apk.apk", zip file "/data/app/com.netease.hookproject-1/s
+ plit_lib_slice_4_apk.apk", zip file "/data/app/com.netease.hookproject-1/split_lib_slice_5_apk.apk", zip file "/data/app/com
+ .netease.hookproject-1/split_lib_slice_6_apk.apk", zip file "/data/app/com.netease.hookproject-1/split_lib_slice_7_apk.apk",
+ zip file "/data/app/com.netease.hookproject-1/split_lib_slice_8_apk.apk", zip file "/data/app/com.netease.hookproject-1/spli
+ t_lib_slice_9_apk.apk"],nativeLibraryDirectories=[/vendor/lib, /system/lib]]
+```
+
+Activity启动：
+
+    > Activity --> Instrumentation ---> AMS检查 --->
+    ActivityThread (即将加载)-（handleLaunchActivity 类加载Activity performLaunchActivity ---> newActivity(cl == PathClassLoader)）
+
+PathClassLoader.loadClass  ---》 BaseDexClassLoader --》ClassLoader.loadClass--findClass(空方法) 让覆盖的子类方法去完成 --》
+BaseDexClassLoader.findClass() ---》pathList.findClass
+
+类加载过程：
+    1). BaseDexClassLoader.findClass() -- c 为什么为null，--》 DexPathList.findClass(className) ---》DexFile.loadClassBinaryName
+
+    2). for遍历 dexElements == Element[] ，分析 Element 是什么 ，为什么Element.dexFile==null?
+
+Android虚拟机加载dex文件，Element是对Dex表现形式的描述
+
+  * 为什么 Element ==null?
+    就是因为类加载机制加载的是宿主的 classes.dex,Elements也是宿主的， 没有插件的Element。
+
+解决方案：把插件的dexElements 和 宿主中的 dexElements 融为一体  PathClassLoader 就能加载到 插件/宿主  都可以加载到了
+Hook式 插件化
+
+   * -- Android ClassLoader介绍
+       * 1.java中的ClassLoader 和 Android的ClassLoader 不一样
+       * 2.Android中的ClassLoader 分为两类：
+            * 系统提供的ClassLoader --> BootClassLoader，PathClassLoader，DexClassLoader
+            * 自定义ClassLoader
+
+       * 补充：
+          BootClassLoader: 给系统预加载使用的
+          PathClassLoader: 给程序/系统程序/应用程序 加载class的 PathClassLoader
+          DexClassLoader: 加载 apk zip apk文件 DexClassLoader
+
+          **App启动**：
+            1.内核启动 ...
+            2.init第一个进程
+            3.zygote进程
+                ---> zygoteInit --> BootClassLoader.getInstance();  
+                 handleSystemServerProcess PathClassLoaderFactory --》PathClassLoader
+            4.zygote进程孵化 SystemServer
+            5.SystemServer启动很多的服务 ---（AMS，PSM，...）
+

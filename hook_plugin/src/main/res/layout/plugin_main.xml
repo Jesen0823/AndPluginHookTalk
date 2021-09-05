@@ -4,25 +4,16 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity">
+    android:background="@color/teal_200"
+    tools:context=".PluginActivity">
 
-    <Button
-        android:id="@+id/startActivity"
+    <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="启动宿主自己普通Activity"
+        android:text="插件Activity"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
-
-    <Button
-        android:id="@+id/startPlugin"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="启动插件的Activity"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintRight_toRightOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/startActivity" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
