@@ -64,7 +64,7 @@ Android虚拟机加载dex文件，Element是对Dex表现形式的描述
     就是因为类加载机制加载的是宿主的 classes.dex,Elements也是宿主的， 没有插件的Element。
 
 解决方案：把插件的dexElements 和 宿主中的 dexElements 融为一体  PathClassLoader 就能加载到 插件/宿主  都可以加载到了
-Hook式 插件化
+
 
    * -- Android ClassLoader介绍
        * 1.java中的ClassLoader 和 Android的ClassLoader 不一样

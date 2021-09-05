@@ -1,7 +1,10 @@
 package com.jesen.hook_host;
 
 import android.app.Application;
+import android.content.Context;
 import android.content.Intent;
+import android.content.res.AssetManager;
+import android.content.res.Resources;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -11,6 +14,11 @@ import android.util.Log;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 
+import com.jesen.hook_host.utils.FileUtil;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -18,188 +26,135 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 
+import dalvik.system.DexClassLoader;
+import dalvik.system.PathClassLoader;
+
 public class HookApplication extends Application {
     private static final String TAG = HookApplication.class.getSimpleName();
-    public static final int LAUNCH_ACTIVITY = 100;
 
-    // 增加权限的管理
-    private static List<String> activityList = new ArrayList<>();
-
-    static {
-        activityList.add(DstNoManifestActivity.class.getName()); // 有权限
-    }
+    private Resources resources;
+    private AssetManager assetManager;
 
     @Override
     public void onCreate() {
         super.onCreate();
 
-        /*try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                hookAmsCheck_Over10();
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-
-            } else { // 小于N
-                hookAmsCheck_lower7();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            Log.d(TAG, "hookAmsCheck 失败：" + e.toString());
-        }
-
         try {
-            hookLaunchActivity();
+            pluginDexToHost();
         } catch (Exception e) {
             e.printStackTrace();
             Log.d(TAG, "hookLaunchActivity 失败：" + e.toString());
-        }*/
-    }
-
-    /**
-     * 执行 AMS之前，替换在AndroidManifest里面配置的可用Activity
-     */
-    private void hookAmsCheck_lower7() throws Exception {
-        Class mIActivityManagerClass = Class.forName("android.app.IActivityManager");
-
-        // 执行此方法拿到IActivityManager对象，才能让动态代理里面的 invoke 正常执行
-        Class activityManagerNativeClass = Class.forName("android.app.ActivityManagerNative");
-
-        final Object iActivityManager = activityManagerNativeClass.getMethod("getDefault").invoke(null);
-
-        InvocationHandler invocationHandler = new InvocationHandler() {
-            /**
-             * @param method IActivityManager里面的方法
-             * @param objects IActivityManager里面的参数
-             */
-            @Override
-            public Object invoke(Object o, Method method, Object[] objects) throws Throwable {
-                if ("startActivity".equals(method.getName())) {
-                    Intent intent = new Intent(HookApplication.this, ProxyActivity.class);
-                    // 还要把本来的intent暂存下来，后面启动的时候还要用它去启动
-                    intent.putExtra("actionIntent", ((Intent) objects[2]));                // 不仅要把代理Intent替换进去，让替身做AMS检查
-                    objects[2] = intent;
-                }
-                Log.d(TAG, "拦截到了IActivityManager里面的方法" + method.getName());
-                // 继续往下执行
-                return method.invoke(iActivityManager, objects);
-            }
-        };
-
-        Object iActivityManagerProxy = Proxy.newProxyInstance(
-                HookApplication.class.getClassLoader(),
-                new Class[]{mIActivityManagerClass},
-                invocationHandler
-        );
-
-        // 通过 ActivityManagerNative 拿到 gDefault变量
-        Field gDefaultField = activityManagerNativeClass.getDeclaredField("gDefault");
-        gDefaultField.setAccessible(true);
-        Object gDefault = gDefaultField.get(null);
-
-        // 替换IActivityManager对象
-        Class singletonClass = Class.forName("android.util.Singleton");
-        // 获取 mInstance字段
-        Field mInstanceField = singletonClass.getDeclaredField("mInstance");
-        mInstanceField.setAccessible(true);
-
-        mInstanceField.set(gDefault, iActivityManagerProxy);
-    }
-
-    private void hookLaunchActivity() throws Exception {
-        Field mCallbackFiled = Handler.class.getDeclaredField("mCallback");
-        mCallbackFiled.setAccessible(true);
-
-        // 获得ActivityThread对象
-        Class activityThreadClass = Class.forName("android.app.ActivityThread");
-        Object activityThread = activityThreadClass.getMethod("currentActivityThread").invoke(null);
-        // 通过 ActivityThread 取得 H
-        Field mHField = activityThreadClass.getDeclaredField("mH");
-        mHField.setAccessible(true);
-        // 获取真正对象
-        Handler mH = (Handler) mHField.get(activityThread);
-
-        // 替换 增加自己的回调逻辑
-        mCallbackFiled.set(mH, new MyCallback(mH));
-    }
-
-    class MyCallback implements Handler.Callback {
-
-        private Handler mH;
-
-        public MyCallback(Handler mH) {
-            this.mH = mH;
-        }
-
-        @Override
-        public boolean handleMessage(@NonNull Message message) {
-            switch (message.what) {
-                case LAUNCH_ACTIVITY:
-                    // 做我们在自己的业务逻辑（把ProxyActivity 换成  DstNoManifestActivity）
-                    Object obj = message.obj;
-                    try {
-                        // 获取之前Hook携带过来的 DstNoManifestActivity 的本来intent
-                        Field intentField = obj.getClass().getDeclaredField("intent");
-                        intentField.setAccessible(true);
-                        // 获取 intent 对象，才能取出携带过来的 actionIntent
-                        Intent intent = (Intent) intentField.get(obj);
-                        // actionIntent == DstNoManifestActivity的Intent
-                        Intent actionIntent = intent.getParcelableExtra("actionIntent");
-
-                        if (actionIntent != null) {
-                            if (activityList.contains(actionIntent.getComponent().getClassName())) {
-                                intentField.set(obj, actionIntent); // 把ProxyActivity 换成  TestActivity
-                            } else { // 没有权限
-                                //intentField.set(obj, new Intent(HookApplication.this, PermissionActivity.class));
-                            }
-                        }
-
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                    break;
-            }
-            mH.handleMessage(message);
-            // 让系统继续正常往下执行
-            return true;
         }
     }
 
-    /**
-     * 10.0以及以上版本
-     */
-    private void hookAmsCheck_Over10() throws Exception {
-        Field iActivityTaskManagerFiled = null;
-        Class<?> activityTaskManagerCls = Class.forName("android.app.ActivityTaskManager");
-        iActivityTaskManagerFiled = activityTaskManagerCls.getDeclaredField("IActivityTaskManagerSingleton");
-        iActivityTaskManagerFiled.setAccessible(true);
-        Object singleton = iActivityTaskManagerFiled.get(null);
-        Class<?> singletonClass = Class.forName("android.util.Singleton");
-        Field mInstanceField = singletonClass.getDeclaredField("mInstance");
-        mInstanceField.setAccessible(true);
+    private void pluginDexToHost() throws Exception {
+        /**
+         * 1. 找到宿主的dexElements
+         * */
+        // 本质就是PathClassLoader
+        PathClassLoader pathClassLoader = (PathClassLoader) this.getClassLoader();
+        Class mBaseDexClassLoaderClass = Class.forName("dalvik.system.BaseDexClassLoader");
+        // private final DexPathList pathList;
+        Field pathListField = mBaseDexClassLoaderClass.getDeclaredField("pathList");
+        pathListField.setAccessible(true);
+        Object mDexPathList = pathListField.get(pathClassLoader);
 
-        // 通过 ActivityManagerNative 拿到 gDefault变量
-        Field gDefaultField = activityTaskManagerCls.getDeclaredField("IActivityTaskManagerSingleton");
-        gDefaultField.setAccessible(true);
-        Object gDefault = gDefaultField.get(null);
+        Field dexElementsField = mDexPathList.getClass().getDeclaredField("dexElements");
+        dexElementsField.setAccessible(true);
+        // 拿到 Element[] dexElements
+        Object dexElements = dexElementsField.get(mDexPathList);
 
-        final Object iActivityTaskManager = activityTaskManagerCls.getMethod("getDefault").invoke(null);
-        Object proxy = Proxy.newProxyInstance(HookApplication.class.getClassLoader()
-                , new Class[]{Class.forName("android.app.IActivityTaskManager")}
-                , new InvocationHandler() {
-                    @Override
-                    public Object invoke(Object proxy, Method method, Object[] objects) throws Throwable {
-                        if ("startActivity".equals(method.getName())) {
-                            Intent intent = new Intent(HookApplication.this, ProxyActivity.class);
-                            // 还要把本来的intent暂存下来，后面启动的时候还要用它去启动
-                            intent.putExtra("actionIntent", ((Intent) objects[2]));
-                            // 不仅要把代理Intent替换进去，让替身做AMS检查
-                            objects[2] = intent;
-                        }
-                        Log.d(TAG, "拦截到了IActivityManager里面的方法" + method.getName());
-                        return method.invoke(iActivityTaskManager, objects);
-                    }
-                });
-        mInstanceField.set(gDefault, proxy);
-        Log.d(TAG, "hook activity task manager success ");
+        /**
+         * 2.找到插件的dexElements，要用DexClassLoader
+         * */
+        File file = FileUtil.getPluginPath(this);
+        if (!file.exists()) {
+            throw new FileNotFoundException("没有找到插件包!!");
+        }
+        String pluginPath = file.getAbsolutePath();
+        // 缓冲路径 data/data/包名/pluginDir/
+        File fileDir = this.getDir("pluginDir", Context.MODE_PRIVATE);
+        DexClassLoader dexClassLoader = new
+                DexClassLoader(pluginPath, fileDir.getAbsolutePath(), null, getClassLoader());
+
+        Class mBaseDexClassLoaderClassPlugin = Class.forName("dalvik.system.BaseDexClassLoader");
+        // private final DexPathList pathList;
+        Field pathListFieldPlugin = mBaseDexClassLoaderClassPlugin.getDeclaredField("pathList");
+        pathListFieldPlugin.setAccessible(true);
+        Object mDexPathListPlugin = pathListFieldPlugin.get(dexClassLoader);
+
+        Field dexElementsFieldPlugin = mDexPathListPlugin.getClass().getDeclaredField("dexElements");
+        dexElementsFieldPlugin.setAccessible(true);
+        // 本质就是 Element[] dexElements
+        Object dexElementsPlugin = dexElementsFieldPlugin.get(mDexPathListPlugin);
+
+        /**
+         * 3.创建新的dexElements，将两者融合
+         * */
+        int hostDexLen = Array.getLength(dexElements);
+        int pluginDexLen = Array.getLength(dexElementsPlugin);
+        int newDexLen = hostDexLen + pluginDexLen;
+        // 创建数组，指定数组类型和长度
+        Object newDexElements = Array.newInstance(dexElements.getClass().getComponentType(), newDexLen);
+
+        for (int i = 0; i < newDexLen; i++) {
+            // 先融合宿主
+            if (i < hostDexLen) {
+                // 参数一：新要融合的容器 -- newDexElements
+                Array.set(newDexElements, i, Array.get(dexElements, i));
+            } else { // 再融合插件的
+                Array.set(newDexElements, i, Array.get(dexElementsPlugin, i - hostDexLen));
+            }
+        }
+
+        // 将dexElements从下标0开始拷贝到总数组
+        //System.arraycopy(dexElements, 0, newDexElements, 0, hostDexLen);
+        // 将dexElementsPlugin从下标hostDexLen开始拷贝到总数组
+        //System.arraycopy(dexElementsPlugin, 0, newDexElements, hostDexLen, pluginDexLen);
+
+        /**
+         * 4.新的dexElements设置给宿主
+         * */
+        dexElementsField.set(mDexPathList, newDexElements);
+        // 处理加载插件中的布局
+        doPluginLayoutLoad();
     }
 
+    /**
+     * 加载插件中的布局
+     */
+    private void doPluginLayoutLoad() throws Exception {
+        assetManager = AssetManager.class.newInstance();
+
+        // 把插件路径给assertManager
+        File file = FileUtil.getPluginPath(this);
+        if (!file.exists()) {
+            throw new FileNotFoundException("没有找到插件包!!");
+        }
+        // 执行此 addAssetPath(String path) 方法，把插件的路径添加进去
+        Method method = assetManager.getClass().getDeclaredMethod("addAssetPath", String.class);
+        method.setAccessible(true);
+        method.invoke(assetManager, file.getAbsolutePath());
+
+        // 宿主的资源配置信息
+        Resources r = getResources();
+        // 实例化此方法 final StringBlock[] ensureStringBlocks()
+        Method ensureStringBlocksMethod = assetManager.getClass().getDeclaredMethod("ensureStringBlocks");
+        ensureStringBlocksMethod.setAccessible(true);
+        // 执行了ensureStringBlocks  string.xml  color.xml会被初始化
+        ensureStringBlocksMethod.invoke(assetManager);
+
+        // 特殊Resource,专门用来加载插件资源
+        resources = new Resources(assetManager, r.getDisplayMetrics(), r.getConfiguration());
+    }
+
+    @Override
+    public Resources getResources() {
+        return resources == null ? super.getResources() : resources;
+    }
+
+    @Override
+    public AssetManager getAssets() {
+        return assetManager == null ? super.getAssets() : assetManager;
+    }
 }
