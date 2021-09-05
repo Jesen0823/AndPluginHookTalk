@@ -10,3 +10,4 @@ rootProject.name = "AndPluginHookTalk"
 include ':app'
 include ':simple_hook'
 include ':hook_host'
+include ':hook_plugin'
