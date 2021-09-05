@@ -144,6 +144,11 @@ public class HookApplication extends Application {
         // 执行了ensureStringBlocks  string.xml  color.xml会被初始化
         ensureStringBlocksMethod.invoke(assetManager);
 
+        // 10.0
+        /*Method getApkAssetsMethod = assetManager.getClass().getDeclaredMethod("build");
+        getApkAssetsMethod.setAccessible(true);
+        getApkAssetsMethod.invoke(assetManager);*/
+
         // 特殊Resource,专门用来加载插件资源
         resources = new Resources(assetManager, r.getDisplayMetrics(), r.getConfiguration());
     }

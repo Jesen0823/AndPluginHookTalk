@@ -86,3 +86,6 @@ Android虚拟机加载dex文件，Element是对Dex表现形式的描述
             4.zygote进程孵化 SystemServer
             5.SystemServer启动很多的服务 ---（AMS，PSM，...）
 
+![2021-09-06_003530.png](./images/README-1630866608562.png)
+![2021-09-06_002704.png](./images/README-1630866611088.png)
+
