@@ -97,7 +97,7 @@ public class HookApplication extends Application {
         // 创建数组，指定数组类型和长度
         Object newDexElements = Array.newInstance(dexElements.getClass().getComponentType(), newDexLen);
 
-        for (int i = 0; i < newDexLen; i++) {
+        /*for (int i = 0; i < newDexLen; i++) {
             // 先融合宿主
             if (i < hostDexLen) {
                 // 参数一：新要融合的容器 -- newDexElements
@@ -105,12 +105,12 @@ public class HookApplication extends Application {
             } else { // 再融合插件的
                 Array.set(newDexElements, i, Array.get(dexElementsPlugin, i - hostDexLen));
             }
-        }
+        }*/
 
         // 将dexElements从下标0开始拷贝到总数组
-        //System.arraycopy(dexElements, 0, newDexElements, 0, hostDexLen);
+        System.arraycopy(dexElements, 0, newDexElements, 0, hostDexLen);
         // 将dexElementsPlugin从下标hostDexLen开始拷贝到总数组
-        //System.arraycopy(dexElementsPlugin, 0, newDexElements, hostDexLen, pluginDexLen);
+        System.arraycopy(dexElementsPlugin, 0, newDexElements, hostDexLen, pluginDexLen);
 
         /**
          * 4.新的dexElements设置给宿主

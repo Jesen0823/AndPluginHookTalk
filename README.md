@@ -28,6 +28,7 @@ startActivity -- DstNoManifestActivity -- (Hook ProxyActivity)（ANS）检测，
 Hook LAUNCH_ACTIVITY
 要在Handler，handleMessage 之前执行
 
+![API28 Activity启动](./images/README-1630986178946.png)
 
 
 ### 类加载和hook插件
@@ -88,4 +89,6 @@ Android虚拟机加载dex文件，Element是对Dex表现形式的描述
 
 ![2021-09-06_003530.png](./images/README-1630866608562.png)
 ![2021-09-06_002704.png](./images/README-1630866611088.png)
+
+![hook插件化流程](./images/README-1630901417980.png)
 
